@@ -1,6 +1,9 @@
 export interface ArticleMeta {
   title: string
-  date: string
+  /** ISO 8601 date-time with an explicit time zone. */
+  publishedAt?: string
+  /** ISO 8601 date-time; defaults to publishedAt. */
+  updatedAt?: string
   summary: string
   tags: string[]
   cover?: string
@@ -158,15 +161,33 @@ const parseFrontmatter = (source: string) => {
   return meta
 }
 
+const parseIsoDateTime = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined
+  const dateTime = value.trim()
+  const isoPattern = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/
+  if (!isoPattern.test(dateTime) || !Number.isFinite(Date.parse(dateTime))) return undefined
+
+  // Date.parse can normalize invalid calendar dates such as February 30.
+  const datePart = dateTime.slice(0, 10)
+  const calendarDate = new Date(`${datePart}T00:00:00Z`)
+  if (!Number.isFinite(calendarDate.getTime()) || calendarDate.toISOString().slice(0, 10) !== datePart) {
+    return undefined
+  }
+  return dateTime
+}
+
 export const parseArticle = (slug: string, rawMarkdown: string): ArticlePost => {
   const normalized = rawMarkdown.replace(/\r\n/g, '\n')
   const match = /^---\n([\s\S]*?)\n---\n?/.exec(normalized)
   const frontmatter = match ? parseFrontmatter(match[1] ?? '') : {}
   const body = match ? normalized.slice(match[0].length).trim() : normalized.trim()
+  const publishedAt = parseIsoDateTime(frontmatter.publishedAt)
+  const updatedAt = parseIsoDateTime(frontmatter.updatedAt) ?? publishedAt
 
   const meta: ArticleMeta = {
     title: String(frontmatter.title ?? slug),
-    date: String(frontmatter.date ?? ''),
+    publishedAt,
+    updatedAt,
     summary: String(frontmatter.summary ?? ''),
     tags: Array.isArray(frontmatter.tags) ? frontmatter.tags.map(String) : [],
     cover: typeof frontmatter.cover === 'string' ? frontmatter.cover : undefined,

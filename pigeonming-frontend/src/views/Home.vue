@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import type { Component } from 'vue'
 import { useRouter } from 'vue-router'
 import PlanetMusicPlayer from '@/components/HomeCarouselSlide/PlanetMusicPlayer.vue'
+import { loadArticleBySlug } from '@/data/article'
+import { renderMarkdown } from '@/utils/markdown'
+import { formatArticleTime } from '@/utils/articleTime'
+import { getArticlePreview, getPlainText } from '@/utils/articlePreview'
 
 interface CarouselSlide {
   key: string
@@ -19,7 +23,9 @@ interface QuickLinkItem {
 interface FeaturedArticleItem {
   key: string
   title: string
-  summary: string
+  summary?: string
+  updatedAt?: string
+  tags?: string[]
   link: string
   coverImage?: string
 }
@@ -52,9 +58,31 @@ const addFeaturedArticle = (article: FeaturedArticleItem) => {
 addFeaturedArticle({
   key: 'article-1',
   title: 'PlanetMusicPlayer 更新日志',
-  summary: '详情信息',
   link: '/article/PMPUpdateLog',
   coverImage: ''
+})
+
+onMounted(async () => {
+  await Promise.all(featuredArticles.value.map(async (article) => {
+    if (article.summary?.trim()) article.summary = getPlainText(renderMarkdown(article.summary))
+    if (!article.link.startsWith('/article/')) return
+
+    const route = router.resolve(article.link)
+    if (route.name !== 'article-detail') return
+
+    try {
+      const post = await loadArticleBySlug(String(route.params.slug))
+      if (post) {
+        article.updatedAt = post.meta.updatedAt
+        article.tags = post.meta.tags
+        if (!article.summary?.trim()) {
+          article.summary = getArticlePreview(post)
+        }
+      }
+    } catch (error) {
+      console.warn(`无法加载精选文章信息：${article.link}`, error)
+    }
+  }))
 })
 
 const carouselSlidesForComponent = computed(() => carouselSlides.value as never[])
@@ -144,7 +172,21 @@ const handleArticleClick = async (item: FeaturedArticleItem) => {
           </div>
           <div class="featured-card-content">
             <h4 class="featured-card-title">{{ item.title }}</h4>
-            <p class="featured-card-summary">{{ item.summary }}</p>
+            <p v-if="item.summary?.trim()" class="featured-card-summary">{{ item.summary }}</p>
+            <div v-if="item.updatedAt || item.tags?.length" class="featured-card-footer">
+              <time
+                v-if="item.updatedAt"
+                class="featured-card-updated"
+                :datetime="item.updatedAt"
+                :title="`更新时间：${formatArticleTime(item.updatedAt)}（北京时间）`"
+              >
+                <span>更新于</span>
+                <span>{{ formatArticleTime(item.updatedAt) }}</span>
+              </time>
+              <div v-if="item.tags?.length" class="featured-card-tags" aria-label="文章标签">
+                <span v-for="tag in item.tags" :key="tag" class="featured-card-tag">{{ tag }}</span>
+              </div>
+            </div>
           </div>
         </FvButton>
       </div>
@@ -154,6 +196,8 @@ const handleArticleClick = async (item: FeaturedArticleItem) => {
 
 <style scoped>
 .home-page {
+  --home-image-background: color-mix(in srgb, var(--color-background) 72%, var(--color-border) 28%);
+  --home-image-gradient: linear-gradient(135deg, rgba(148, 163, 184, 0.36), rgba(148, 163, 184, 0.24));
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -212,6 +256,7 @@ const handleArticleClick = async (item: FeaturedArticleItem) => {
 }
 
 .featured-card-cover {
+  flex-shrink: 0;
   width: 100%;
   aspect-ratio: 16 / 9;
   overflow: hidden;
@@ -228,9 +273,7 @@ const handleArticleClick = async (item: FeaturedArticleItem) => {
 .featured-card-cover-placeholder {
   width: 100%;
   height: 100%;
-  background:
-    linear-gradient(135deg, rgba(148, 163, 184, 0.36), rgba(148, 163, 184, 0.24)),
-    color-mix(in srgb, var(--color-background) 72%, var(--color-border) 28%);
+  background: var(--home-image-gradient), var(--home-image-background);
 }
 
 .featured-card-content {
@@ -239,6 +282,8 @@ const handleArticleClick = async (item: FeaturedArticleItem) => {
   flex-direction: column;
   gap: 0.52rem;
   min-height: 122px;
+  min-width: 0;
+  flex: 1;
 }
 
 .featured-card-title {
@@ -249,18 +294,58 @@ const handleArticleClick = async (item: FeaturedArticleItem) => {
 }
 
 .featured-card-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  max-height: 4.65em;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
   font-size: 0.86rem;
   color: var(--color-text);
   line-height: 1.55;
   opacity: 0.92;
-  min-height: 56px;
-  flex: 1 0 auto;
+  margin: 0;
+  flex-shrink: 0;
 }
 
-.featured-card-hint {
-  font-size: 0.8rem;
+.featured-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.6rem;
+  margin-top: auto;
+  padding-top: 0.35rem;
+  min-width: 0;
+  white-space: normal;
+  font-size: 0.72rem;
   color: var(--color-text);
-  opacity: 0.62;
+  line-height: 1.5;
+}
+
+.featured-card-updated {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+.featured-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.featured-card-tag {
+  min-width: 0;
+  padding: 0.08rem 0.38rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow-wrap: anywhere;
 }
 
 :deep(.featured-card-button.fv-Button) {

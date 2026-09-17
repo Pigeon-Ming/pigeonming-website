@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import bannerUrl from '@/assets/planetmusicplayer-banner.png'
+import qrCodeUrl from '@/assets/qq-pindao-qrcode.jpg'
+import { getCachedImageBlob } from '@/utils/cachedImage'
 
 const isDarkMode = ref(false)
+const displayedBannerUrl = ref(import.meta.env.DEV ? bannerUrl : '')
 const heroImageUrl =
   'https://store-images.s-microsoft.com/image/apps.43560.14425043237308195.80084d59-ef80-4929-b61a-fcdb3de27502.e1d7772f-2cd1-4699-98be-2d453b39b44a'
 
@@ -10,6 +14,7 @@ const syncTheme = () => {
 }
 
 let observer: MutationObserver | null = null
+let isUnmounted = false
 
 const ensureStoreBadgeScript = () => {
   const scriptSrc = 'https://get.microsoft.com/badge/ms-store-badge.bundled.js'
@@ -30,11 +35,30 @@ onMounted(() => {
     attributes: true,
     attributeFilter: ['data-theme'],
   })
+
+  if (!import.meta.env.DEV) {
+    void getCachedImageBlob(bannerUrl)
+      .then((blob) => {
+        const objectUrl = URL.createObjectURL(blob)
+        if (isUnmounted) {
+          URL.revokeObjectURL(objectUrl)
+        } else {
+          displayedBannerUrl.value = objectUrl
+        }
+      })
+      .catch(() => {
+        if (!isUnmounted) displayedBannerUrl.value = bannerUrl
+      })
+  }
 })
 
 onBeforeUnmount(() => {
+  isUnmounted = true
   observer?.disconnect()
   observer = null
+  if (displayedBannerUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(displayedBannerUrl.value)
+  }
 })
 </script>
 
@@ -43,7 +67,10 @@ onBeforeUnmount(() => {
     <header
       class="product-hero"
       :class="isDarkMode ? 'theme-dark' : 'theme-light'"
-      :style="{ '--thumb-image': `url(${heroImageUrl})` }"
+      :style="{
+        '--banner-image': displayedBannerUrl ? `url(${displayedBannerUrl})` : 'none',
+        '--thumb-image': `url(${heroImageUrl})`,
+      }"
     >
       <div class="hero-content">
         <h1 class="hero-title">PlanetMusicPlayer</h1>
@@ -67,6 +94,14 @@ onBeforeUnmount(() => {
         <img class="hero-thumbnail" :src="heroImageUrl" alt="PlanetMusicPlayer 产品截图" loading="eager" />
       </div>
     </header>
+
+    <section class="channel-section" :class="isDarkMode ? 'theme-dark' : 'theme-light'" aria-labelledby="channel-title">
+      <div class="channel-content">
+        <h2 id="channel-title">添加QQ频道，获取更多信息</h2>
+        <p>使用 QQ 扫描二维码，加入 PlanetMusicPlayer 频道</p>
+      </div>
+      <img class="channel-qrcode" :src="qrCodeUrl" alt="PlanetMusicPlayer QQ频道二维码" loading="lazy" />
+    </section>
   </section>
 </template>
 
@@ -91,7 +126,7 @@ onBeforeUnmount(() => {
   content: '';
   position: absolute;
   inset: -24% -10% -24% 28%;
-  background-image: var(--thumb-image);
+  background-image: var(--banner-image);
   background-size: cover;
   background-position: right center;
   filter: blur(72px) saturate(126%) contrast(102%);
@@ -255,6 +290,52 @@ onBeforeUnmount(() => {
   --text-description: rgba(231, 241, 255, 0.94);
 }
 
+.channel-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1.5rem, 6vw, 5rem);
+  padding: clamp(2rem, 5vw, 4rem);
+  border: 1px solid var(--channel-border);
+  border-radius: 16px;
+  background: var(--channel-background);
+  color: var(--text-main);
+}
+
+.channel-content {
+  max-width: 26rem;
+}
+
+.channel-content h2 {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  line-height: 1.25;
+}
+
+.channel-content p {
+  margin-top: 0.75rem;
+  line-height: 1.6;
+  color: var(--text-description);
+}
+
+.channel-qrcode {
+  display: block;
+  width: clamp(260px, 32vw, 380px);
+  max-width: 100%;
+  height: auto;
+  flex: 0 1 auto;
+  border-radius: 12px;
+}
+
+.channel-section.theme-light {
+  --channel-background: #eef5fc;
+  --channel-border: rgba(15, 23, 42, 0.1);
+}
+
+.channel-section.theme-dark {
+  --channel-background: #142337;
+  --channel-border: rgba(148, 163, 184, 0.2);
+}
+
 @media (max-width: 960px) {
   .product-hero {
     grid-template-columns: 1fr;
@@ -274,6 +355,11 @@ onBeforeUnmount(() => {
   .hero-thumbnail {
     aspect-ratio: 16 / 9;
     border-radius: 8px;
+  }
+
+  .channel-section {
+    flex-direction: column;
+    text-align: center;
   }
 }
 </style>

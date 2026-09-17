@@ -104,8 +104,8 @@ const buttonBorderColor = computed(() =>
   gap: 2rem;
   padding: 1.25rem 1.25rem 1.25rem clamp(2.75rem, 5vw, 4.75rem);
   overflow: hidden;
-  background-color: var(--banner-fallback);
-  background-image: var(--banner-image);
+  background-color: var(--home-image-background);
+  background-image: var(--banner-image), var(--home-image-gradient);
   background-repeat: no-repeat;
   background-position: right center;
   background-size: cover;
@@ -154,13 +154,11 @@ const buttonBorderColor = computed(() =>
 }
 
 .theme-light {
-  --banner-fallback: #f8fafc;
   --text-main: #ffffff;
   --adaptive-text-muted: rgba(255, 255, 255, 0.86);
 }
 
 .theme-dark {
-  --banner-fallback: #0b1220;
   --text-main: #ffffff;
   --adaptive-text-muted: rgba(255, 255, 255, 0.86);
 }
@@ -180,15 +178,29 @@ const buttonBorderColor = computed(() =>
   }
 }
 
-@media (max-width: 680px) {
+@media (width < 768px) {
   .carousel-slide {
+    --text-main: var(--color-heading);
+    --adaptive-text-muted: var(--color-text);
     justify-content: center;
     padding: 1.25rem 1.5rem;
+    background-image: var(--home-image-gradient);
   }
 
   .carousel-content {
+    min-width: 0;
     max-width: 100%;
   }
 
+  .hero-title {
+    font-size: clamp(1.25rem, 4.5vw, 1.55rem);
+    overflow-wrap: anywhere;
+  }
+
+  .hero-badge,
+  .hero-title,
+  .hero-description {
+    mix-blend-mode: normal;
+  }
 }
 </style>

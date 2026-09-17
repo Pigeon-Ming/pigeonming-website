@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ArticlePost } from '@/utils/markdown'
+import { formatArticleTime } from '@/utils/articleTime'
 
 defineProps<{
   post: ArticlePost
@@ -11,7 +12,16 @@ defineProps<{
     <header class="article-header">
       <h1>{{ post.meta.title }}</h1>
       <div class="article-meta">
-        <time v-if="post.meta.date" :datetime="post.meta.date">{{ post.meta.date }}</time>
+        <time
+          v-if="post.meta.publishedAt !== undefined"
+          :datetime="post.meta.publishedAt"
+          title="北京时间（UTC+8）"
+        >发布时间：{{ formatArticleTime(post.meta.publishedAt) }}</time>
+        <time
+          v-if="post.meta.updatedAt !== undefined"
+          :datetime="post.meta.updatedAt"
+          title="北京时间（UTC+8）"
+        >更新时间：{{ formatArticleTime(post.meta.updatedAt) }}</time>
         <span v-for="tag in post.meta.tags" :key="tag" class="article-tag">{{ tag }}</span>
       </div>
       <p v-if="post.meta.summary" class="article-summary">{{ post.meta.summary }}</p>
@@ -46,6 +56,10 @@ defineProps<{
   color: var(--color-text);
   font-size: 0.82rem;
   opacity: 0.76;
+}
+
+.article-meta time {
+  white-space: nowrap;
 }
 
 .article-tag {

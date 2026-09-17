@@ -3,14 +3,19 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { loadArticles } from '@/data/article'
 import type { ArticlePost } from '@/utils/markdown'
+import { formatArticleTime } from '@/utils/articleTime'
+import { getArticlePreview } from '@/utils/articlePreview'
 
 const router = useRouter()
-const articles = ref<ArticlePost[]>([])
+const articles = ref<(ArticlePost & { preview: string })[]>([])
 const isLoading = ref(true)
 
 onMounted(async () => {
   try {
-    articles.value = await loadArticles()
+    articles.value = (await loadArticles()).map((post) => ({
+      ...post,
+      preview: getArticlePreview(post),
+    }))
   } finally {
     isLoading.value = false
   }
@@ -31,14 +36,27 @@ const openPost = async (slug: string) => {
 
     <div v-else-if="articles.length" class="post-list">
       <article v-for="post in articles" :key="post.slug" class="post-card">
+        <FvRevealContainer
+          class="post-reveal"
+          background-color="var(--article-reveal-background)"
+          border-color="var(--article-reveal-border)"
+          :background-gradient-size="120"
+          :border-gradient-size="80"
+          :border-radius="8"
+          aria-hidden="true"
+        />
         <button type="button" class="post-button" @click="openPost(post.slug)">
           <div class="post-content">
             <div class="post-meta">
-              <time v-if="post.meta.date" :datetime="post.meta.date">{{ post.meta.date }}</time>
+              <time
+                v-if="post.meta.updatedAt !== undefined"
+                :datetime="post.meta.updatedAt"
+                title="北京时间（UTC+8）"
+              >更新时间：{{ formatArticleTime(post.meta.updatedAt) }}</time>
               <span v-for="tag in post.meta.tags" :key="tag" class="post-tag">{{ tag }}</span>
             </div>
             <h2>{{ post.meta.title }}</h2>
-            <p>{{ post.meta.summary }}</p>
+            <p v-if="post.preview" class="post-summary">{{ post.preview }}</p>
           </div>
           <i class="ms-Icon ms-Icon--ChevronRight post-arrow" />
         </button>
@@ -74,13 +92,26 @@ const openPost = async (slug: string) => {
 }
 
 .post-card {
+  position: relative;
+  isolation: isolate;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   overflow: hidden;
   background: var(--article-card-background);
 }
 
+.post-reveal {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
 .post-button {
+  position: relative;
+  z-index: 2;
   width: 100%;
   min-height: 132px;
   display: grid;
@@ -94,8 +125,10 @@ const openPost = async (slug: string) => {
   cursor: pointer;
 }
 
-.post-button:hover {
-  background: var(--article-card-hover);
+.post-button:focus-visible {
+  outline: 2px solid var(--article-reveal-border);
+  outline-offset: -3px;
+  border-radius: 7px;
 }
 
 .post-content {
@@ -134,7 +167,14 @@ const openPost = async (slug: string) => {
   line-height: 1.35;
 }
 
-.post-card p {
+.post-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  max-height: 4.95em;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
   margin-top: 0.42rem;
   color: var(--color-text);
   font-size: 0.92rem;
@@ -155,11 +195,13 @@ const openPost = async (slug: string) => {
 
 :global(:root[data-theme='light']) .article-list-page {
   --article-card-background: rgba(255, 255, 255, 0.7);
-  --article-card-hover: rgba(0, 90, 158, 0.06);
+  --article-reveal-background: rgba(121, 119, 117, 0.1);
+  --article-reveal-border: rgba(121, 119, 117, 0.6);
 }
 
 :global(:root[data-theme='dark']) .article-list-page {
   --article-card-background: rgba(255, 255, 255, 0.035);
-  --article-card-hover: rgba(125, 195, 255, 0.08);
+  --article-reveal-background: rgba(255, 255, 255, 0.1);
+  --article-reveal-border: rgba(255, 255, 255, 0.6);
 }
 </style>

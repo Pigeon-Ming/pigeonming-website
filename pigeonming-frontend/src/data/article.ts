@@ -31,7 +31,11 @@ export const loadArticles = async (): Promise<ArticlePost[]> => {
 
   return posts
     .filter((post) => !post.meta.draft)
-    .sort((left, right) => right.meta.date.localeCompare(left.meta.date))
+    .sort((left, right) => {
+      if (left.meta.publishedAt === undefined) return right.meta.publishedAt === undefined ? 0 : 1
+      if (right.meta.publishedAt === undefined) return -1
+      return Date.parse(right.meta.publishedAt) - Date.parse(left.meta.publishedAt)
+    })
 }
 
 export const loadArticleBySlug = async (slug: string) => {

@@ -41,6 +41,7 @@ const router = useRouter()
 const route = useRoute()
 const themeStorageKey = 'pigeonming-article-theme'
 const isDarkMode = ref(false)
+const mobileMenu = ref<{ status: boolean } | null>(null)
 
 const currentTheme = computed<'light' | 'dark'>(() => (isDarkMode.value ? 'dark' : 'light'))
 const themeClass = computed(() => (isDarkMode.value ? 'theme-dark' : 'theme-light'))
@@ -111,6 +112,17 @@ const toFlyoutOptions = (items: NavMenuItem[]): FlyoutOption[] =>
 const toFlyoutOptionsForComponent = (items: NavMenuItem[]) => toFlyoutOptions(items) as never[]
 
 const topLevelMenus = computed(() => navigationMenus.value.filter((menu) => menu.type !== 'divider'))
+const mobileMenuOptions = computed(() => [
+  ...toFlyoutOptions(navigationMenus.value),
+  { key: 'theme-divider', text: '', type: 'divider' },
+  { key: 'toggle-theme', text: isDarkMode.value ? '切换为浅色模式' : '切换为深色模式' },
+] as never[])
+
+const closeMobileMenu = () => {
+  if (mobileMenu.value) mobileMenu.value.status = false
+}
+
+watch(() => route.path, closeMobileMenu)
 
 const isRouteActive = (targetRoute?: string) => {
   if (!targetRoute) return false
@@ -171,6 +183,10 @@ const handleTopMenuClick = async (menu: NavMenuItem) => {
 const handleFlyoutChoose = async (path: FlyoutOption[]) => {
   const target = path[path.length - 1]
   if (!target || target.type === 'header' || target.type === 'divider') return
+  if (target.key === 'toggle-theme') {
+    isDarkMode.value = !isDarkMode.value
+    return
+  }
   await navigateTo(target)
 }
 </script>
@@ -239,6 +255,38 @@ const handleFlyoutChoose = async (path: FlyoutOption[]) => {
         </nav>
       </div>
       <div class="nav-right">
+        <FvMenuFlyout
+          ref="mobileMenu"
+          class="mobile-menu"
+          :theme="currentTheme"
+          :options="mobileMenuOptions"
+          :mobile-mode="true"
+          :background="flyoutBackground"
+          :choosen-background="flyoutChoosenBackground"
+          :title-foreground="flyoutTitleForeground"
+          root-trigger-mode="click"
+          trigger-mode="click"
+          @choose-item-path="handleFlyoutChoose"
+          @keydown.esc="closeMobileMenu"
+        >
+          <template #input="{ switch: toggleFlyout }">
+            <FvButton
+              class="mobile-menu-button"
+              :theme="currentTheme"
+              :is-box-shadow="false"
+              :border-radius="8"
+              background="var(--menu-idle-bg)"
+              foreground="var(--menu-text)"
+              aria-label="导航菜单"
+              aria-haspopup="true"
+              :aria-expanded="mobileMenu?.status ?? false"
+              title="导航菜单"
+              @click="toggleFlyout"
+            >
+              <i class="ms-Icon ms-Icon--GlobalNavButton" aria-hidden="true" />
+            </FvButton>
+          </template>
+        </FvMenuFlyout>
         <div class="theme-toggle" :title="isDarkMode ? '深色模式' : '浅色模式'">
           <FvToggleSwitch
             v-model="isDarkMode"
@@ -311,6 +359,11 @@ const handleFlyoutChoose = async (path: FlyoutOption[]) => {
   display: flex;
   align-items: center;
   gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.mobile-menu {
+  display: none;
 }
 
 .brand {
@@ -458,23 +511,79 @@ const handleFlyoutChoose = async (path: FlyoutOption[]) => {
 
 @media (max-width: 900px) {
   .top-nav {
-    flex-direction: column;
-    align-items: stretch;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
   }
 
-  .nav-left {
-    width: 100%;
-    flex-wrap: wrap;
+  .brand {
+    flex: 0 1 auto;
   }
 
-  .nav-right {
-    align-self: flex-end;
+  .brand-icon {
+    flex-shrink: 0;
   }
 
-  .menu-list {
-    width: 100%;
-    justify-content: flex-start;
-    margin-left: 0;
+  .brand-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .menu-list,
+  .theme-toggle {
+    display: none;
+  }
+
+  .mobile-menu {
+    display: inline-flex;
+    width: auto;
+    height: auto;
+  }
+
+  :deep(.mobile-menu-button.fv-Button) {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    font-size: 1.15rem;
+  }
+
+  /* Keep Fluent's touch-friendly submenu/back navigation in a compact dropdown. */
+  :deep(.mobile-menu > .menu-flyout-list-container.mobile-mode) {
+    position: absolute;
+    top: calc(100% + 6px) !important;
+    right: 0 !important;
+    left: auto !important;
+    bottom: auto;
+    width: min(280px, calc(100vw - 24px));
+    height: auto;
+    backdrop-filter: none;
+  }
+
+  :deep(.mobile-menu .menu-flyout-list-container.mobile-mode .menu-flyout-item-container) {
+    padding: 8px;
+    max-height: calc(100dvh - 80px) !important;
+    overscroll-behavior: contain;
+  }
+
+  :deep(.mobile-menu > .menu-flyout-list-container > .menu-flyout-item-container > .fv-menu-flyout-mobile-control) {
+    display: none;
+  }
+
+  /* Let the active submenu determine the dropdown height instead of covering its parent. */
+  :deep(.mobile-menu .menu-flyout-list-container:has(> .menu-flyout-list-container) > .menu-flyout-item-container) {
+    display: none;
+  }
+
+  :deep(.mobile-menu .menu-flyout-list-container .menu-flyout-list-container.mobile-mode) {
+    position: relative;
+    top: auto;
+    bottom: auto;
+    height: auto;
+    align-items: flex-start;
+    backdrop-filter: none;
+  }
+
+  :deep(.mobile-menu .fv-menu-flyout-item:not(.hr):not(.title)) {
+    min-height: 44px;
   }
 }
 
